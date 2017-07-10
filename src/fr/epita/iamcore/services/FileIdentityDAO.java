@@ -14,22 +14,29 @@ import java.util.List;
 import java.util.Scanner;
 
 import fr.epita.iamcore.datamodel.Identity;
+import fr.epita.iamcore.exceptions.*;
 
 /**
  * @author Zick
  * DAO stands for Data Access Object
  */
-public class FileIdentityDAO {
+public class FileIdentityDAO implements DAO{
 	
 	private File file;
 	private PrintWriter p;
 	private Scanner scan;
-	//Constructor
+
+	/**
+	 * This is the constructor of FileIdentityDAO
+	 * It will create a file writer in append mode and open a file reader
+	 */
 	public FileIdentityDAO(){
 		openWriter(true);
 		try {
 			FileReader r = new FileReader(file);
 			this.scan = new Scanner(r);
+			this.setIdentityLastId();
+			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -47,8 +54,9 @@ public class FileIdentityDAO {
 	 * --- Identity ---
 	 * </pre>
 	 * @param i the identity to record
+	 * @throws SaveDAOException if there is any save error occurs
 	 */
-	public void save(Identity i){		
+	public void save(Identity i) throws SaveDAOException{		
 		//Concrete write operations in the file
 		this.p.println("--- Identity ---");
 		this.p.println(i.getUid());
@@ -60,24 +68,62 @@ public class FileIdentityDAO {
 		this.p.flush();
 		
 	}
+	/**
+	 * This is a listAll method, it will list all the identities in the file 
+	 * @return  List of result identities
+	 * @throws NumberFormatException if can not convert to integer, FileNotFoundException if the file does not exist
+	 */
+	public List<Identity> listAll(){
+		ArrayList<Identity> results = new ArrayList<Identity>();
+		
+		while (this.scan.hasNext()) {
+			this.scan.nextLine();
+			
+			// something before
+			int id = 0;
+			try{
+				id = Integer.parseInt(this.scan.nextLine());
+			}
+			catch(NumberFormatException e){}
+			String displayName = this.scan.nextLine();
+			// something after
+			String email = this.scan.nextLine();
+			this.scan.nextLine();
+			
+			results.add(new Identity(id,displayName,email));
+		}
+		this.scan.close();
+		
+		//This is used to prevent the error
+		try {
+			this.scan = new Scanner(new FileReader(new File("/temp/tests/identities.txt")));
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		return results;
+	}
 	
 	/**
 	 * This is a search method, it will search if the identity exist and return a list of result
 	 * It uses scanIdentityOfFile method
 	 * @param i the identity to search
-	 * @return 
+	 * @return List of result identities
+	 * @throws SearchDAOException if any search error occurs
 	 */
-	public List<Identity> search(Identity i){
+	public List<Identity> search(Identity i) throws SearchDAOException{
 		// TODO : complete with a real search
 		return this.scanIdentityOfFile(i, 1);
 	}
 	
 	/**
-	 * This is a search method, it will search if the identity exist
+	 * This is a update method, it will update the identity with a new name and email
 	 * It uses scanIdentityOfFile method
-	 * @param i the identity to search
+	 * @param i the identity need to be updated
+	 * @throws UpdateDAOException if any update error occurs
 	 */
-	public void update(Identity i){
+	public void update(Identity i) throws UpdateDAOException{
 		
 		ArrayList<Identity> results = this.scanIdentityOfFile(i,2);
 		
@@ -89,16 +135,23 @@ public class FileIdentityDAO {
 		//Open a file writer to write
 		openWriter(true);
 		for(int j=0;j<results.size();j++){
-			this.save(results.get(j));
+			try{
+				this.save(results.get(j));
+			}
+			catch(SaveDAOException e){
+				throw new UpdateDAOException();
+			}
+
 		}
 	}
 	
 	/**
-	 * This is a search method, it will search if the identity exist
+	 * This is a delete method, it will delete an identity
 	 * It uses scanIdentityOfFile method
-	 * @param i the identity to search
+	 * @param i the identity to delete
+	 * @throws DeleteDAOException if any delete error occurs
 	 */
-	public void delete(Identity i){
+	public void delete(Identity i) throws DeleteDAOException{
 		ArrayList<Identity> results = this.scanIdentityOfFile(i,3);
 		
 		//Erase the content of the old file
@@ -109,11 +162,19 @@ public class FileIdentityDAO {
 		//Open a file writer to write
 		openWriter(true);
 		for(int j=0;j<results.size();j++){
-			this.save(results.get(j));
+			try{
+				this.save(results.get(j));
+			}
+			catch(SaveDAOException e){
+				throw new DeleteDAOException();
+			}
 		}
 		
 	}
 	
+	/**
+	 * This method is used to close the printer
+	 */
 	public void closeDAO(){
 		p.close();
 	}
@@ -215,6 +276,41 @@ public class FileIdentityDAO {
 		}
 		
 		return results;
+	}
+	
+	/**
+	 * This is a method that will scan the file to find the latest ID of identity 
+	 * It will set the counter of Identity class to be the latest ID
+	 */
+	public void setIdentityLastId(){
+		
+		int latestID = 0;
+
+		while (this.scan.hasNext()) {
+			this.scan.nextLine();
+			try{
+				latestID = Integer.parseInt(this.scan.nextLine());
+			} catch(NumberFormatException e){
+				e.printStackTrace();
+			}
+			
+			//Scan to end an identity
+			this.scan.nextLine();
+			this.scan.nextLine();
+			this.scan.nextLine();
+		}
+		
+		this.scan.close();
+		
+		Identity.setCounter(latestID);
+		
+		//This is used to prevent the error
+		try {
+			this.scan = new Scanner(new FileReader(new File("/temp/tests/identities.txt")));
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 	
 }

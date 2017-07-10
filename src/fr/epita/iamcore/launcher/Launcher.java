@@ -2,111 +2,200 @@ package fr.epita.iamcore.launcher;
 
 
 import java.io.FileNotFoundException;
+import java.sql.SQLException;
+import java.util.List;
 import java.util.Scanner;
 
 import fr.epita.iamcore.datamodel.Identity;
+import fr.epita.iamcore.exceptions.DeleteDAOException;
+import fr.epita.iamcore.exceptions.SaveDAOException;
+import fr.epita.iamcore.exceptions.SearchDAOException;
+import fr.epita.iamcore.exceptions.UpdateDAOException;
 import fr.epita.iamcore.services.Authenticator;
-import fr.epita.iamcore.services.FileIdentityDAO;
+import fr.epita.iamcore.services.JDBCIdentityDAO;
 import fr.epita.loggingsystem.Logger;
 import fr.epita.loggingsystem.LoggerConfiguration;
 
 public class Launcher {
+
+	private static Scanner scan = new Scanner(System.in);
+	private static Logger logger;
 	
 	/**
+	 * This main method is used to run the program
+	 * It will ask the user to authenticate himself/herself
+	 * Users can choose the following option:
+	 * 1. Show all identities
+	 * 2. Search Identity"
+	 * 3. Save Identity
+	 * 4. Update Identity
+	 * 5. Delete Identity
+	 * 6. Exit
+	 * The program will continue asking the user to perform an action unless he/she chooses exit
 	 * @param args
+	 * @throws FileNotFoundException
 	 */
-	private static Scanner scan = new Scanner(System.in);
-	
 	public static void main(String[] args) throws FileNotFoundException{		
 		
 		LoggerConfiguration config = new LoggerConfiguration("/temp/application.log");
-		Logger logger = new Logger(config);
+		logger = new Logger(config);
 		
-		boolean authentication = Authenticator.authenticated(scan);
+		int invalidTime = 0;
 		
-		FileIdentityDAO file = new FileIdentityDAO();
-		
-		if(!authentication){
-			logger.log("unable to authenticate");
-			scan.close();
-			return;
-		}
-		
-		System.out.println("Successfully authentication!");
-		System.out.println("Welcome to the system! What would you like to do?");
-		while(true){	
-			System.out.println("1. Create Identity");
-			System.out.println("2. Save Identity");
-			System.out.println("3. Update Identity");
-			System.out.println("4. Delete Identity");
-			System.out.println("5. Exit");
+		while(true){
+			//Ask for the authentication
+			System.out.println("Enter the username: ");
+			String user = scan.nextLine().trim();
+			System.out.println("Enter the password: ");
+			String password = scan.nextLine().trim();
 			
-			
-			String input = scan.nextLine().trim();
-			
-			boolean valid = true;
-			String result[];
-			switch(input){
-				//This is create case
-				case "1":
-					result = askForIdentity("create");
-					Identity i = new Identity(result[0],result[1]);
-					System.out.println("You have created an identity: ");
-					System.out.println(i.toString());
-					break;
-				//This is save case
-				case "2":
-					result = askForIdentity("save");
-					file.save(new Identity(result[0],result[1]));
-					valid = true;
-					break;
-				//This is update case
-				case "3":
-					System.out.println("Enter the identity's id that you want to update: ");
-					try{
-						int id = Integer.parseInt(scan.nextLine());
-						result = askForIdentity("update");
-						file.update(new Identity(id,result[0],result[1]));
-						System.out.println("You have sucessfully updated the identity");
-					}
-					catch(Exception e){
-						e.printStackTrace();
-					}
-					break;
-				//This is delete case
-				case "4":
-					System.out.println("Enter the identity's id that you want to delete: ");
-					try{
-						int id = Integer.parseInt(scan.nextLine());
-						result = askForIdentity("delete");
-						file.delete(new Identity(id,result[0],result[1]));
-						System.out.println("You have sucessfully deleted the identity");
-					}
-					catch(Exception e){
-						e.printStackTrace();
-					}
-					break;
-				case "5":
-					System.out.println("Thank you for using our service! Have a good day!");
-					valid = true;
-					break;
-				default:
-					System.out.println("Invalid option! Please try again!");	
-					valid = false;
-					break;
+			boolean authentication = Authenticator.authenticated(user,password);
+		
+			if(!authentication){
+				System.out.println("Invalid username or password");
+				logger.log("unable to authenticate");
+				invalidTime++;
+				
+				//If there are 3 failures, the program closes
+				if(invalidTime == 3){
+					scan.close();
+					System.out.println("You have been blocked from the system! System shut down!");
+					logger.log("block access");
+					return;
+				}
 			}
-			
-			logger.log("User chose option " + input);
-			if (valid&&input.equalsIgnoreCase("5")){
+			else{
+				logger.log("User " + user + " has logged in");
 				break;
 			}
 		}
 		
-		file.closeDAO();
+		//Create JBDC DAO	
+		try {
+			JDBCIdentityDAO database = new JDBCIdentityDAO();
+			
+			System.out.println("Successfully authentication!");
+			System.out.println("Welcome to the system! What would you like to do?");
+			while(true){	
+				System.out.println("1. Show all identities");
+				System.out.println("2. Search Identity");
+				System.out.println("3. Save Identity");
+				System.out.println("4. Update Identity");
+				System.out.println("5. Delete Identity");	
+				System.out.println("6. Exit");
+				
+				
+				String input = scan.nextLine().trim();
+				
+				boolean valid = true;
+				String result[];
+				
+				List<Identity> iList;
+				
+				switch(input){
+					//This is the show identities cases
+					case "1":
+						iList = database.showAll();
+						for(int i=0; i<iList.size(); i++){
+							System.out.println(iList.get(i).display());
+						}
+						break;
+					//This is search case
+					case "2":
+						result = askForIdentity("search");
+						Identity identity = new Identity(Integer.parseInt(result[0]),result[1],result[2]);
+						iList = database.search(identity);
+						for(int i=0; i<iList.size(); i++){
+							System.out.println(iList.get(i).display());
+						}
+						break;
+					//This is save case
+					case "3":
+						result = askForIdentity("save");
+						database.save(new Identity(result[1],result[2]));
+						valid = true;
+						break;
+					//This is update case
+					case "4":
+						result = askForIdentity("update");
+						database.update(new Identity(Integer.parseInt(result[0]),result[1],result[2]));
+						System.out.println("You have sucessfully updated the identity");
+						break;
+					//This is delete case
+					case "5":
+						result = askForIdentity("delete");
+						database.delete(new Identity(Integer.parseInt(result[0]),result[1],result[2]));
+						System.out.println("You have sucessfully deleted the identity");
+						break;
+					case "6":
+						System.out.println("Thank you for using our service! Have a good day!");
+						valid = true;
+						break;
+					default:
+						System.out.println("Invalid option! Please try again!");	
+						valid = false;
+						break;
+				}
+				
+				logger.log("User chose option " + input);
+				
+				if (valid&&input.equalsIgnoreCase("6")){
+					database.closeDatabase();
+					break;
+				}
+			}
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			System.out.println("Database errors occured!");
+			logger.log("Database errors occured!");
+		} catch (NumberFormatException e) {
+			// TODO Auto-generated catch block
+			System.out.println("Unexpected error occured");
+			logger.log("Unexpected error occured");
+		} catch (SearchDAOException e) {
+			// TODO Auto-generated catch block
+			System.out.println("There are searching errors");
+			logger.log("Searching error occured");
+		} catch (SaveDAOException e) {
+			// TODO Auto-generated catch block
+			System.out.println("There are save errors");
+			logger.log("Save error occured");
+		} catch (UpdateDAOException e) {
+			// TODO Auto-generated catch block
+			System.out.println("There are update errors");
+			logger.log("Update error occured");
+		} catch (DeleteDAOException e) {
+			// TODO Auto-generated catch block
+			System.out.println("There are delete errors");
+			logger.log("Delete error occured");
+		}
+		
+		
+		
+		
+		
+		//database.closeDAO();
 	}
 	
 	public static String[] askForIdentity(String purpose){
-		String[] result = new String[2];
+		String[] result = new String[3];
+		boolean invalid = true;
+		
+		//Ask for id
+		while(invalid && !purpose.equalsIgnoreCase("save")){
+			System.out.println("Enter the identity id you want to " + purpose +  ":" );
+			result[0] = scan.nextLine().trim();
+			
+			try{
+				Integer.parseInt(result[0]);
+				invalid = false;
+			}
+			catch(Exception e){
+				System.out.println("Invalid id!");
+				logger.log("User typed invalid id");
+				invalid = true;
+			}
+		}
 		
 		//Ask for a name
 		if(purpose.equalsIgnoreCase("update")){
@@ -115,16 +204,21 @@ public class Launcher {
 		else{
 			System.out.println("Enter the identity name you want to " + purpose +  ": ");
 		}
-		result[0] = scan.nextLine().trim();
+		result[1] = scan.nextLine().trim();
 		
 		//Ask for a email
 		if(purpose.equalsIgnoreCase("update")){
-			System.out.println("Enter new identity mail: ");
+			System.out.println("Enter new identity email: ");
+			result[2] = scan.nextLine().trim();
+		}
+		else if(purpose.equalsIgnoreCase("save")){
+			System.out.println("Enter the identity email you want to " + purpose +  ": ");
+			result[2] = scan.nextLine().trim();
 		}
 		else{
-			System.out.println("Enter the identity mail you want to " + purpose +  ": ");
+			result[2] = "";
 		}
-		result[1] = scan.nextLine().trim();
+		
 		
 		//Return result
 		return result;
