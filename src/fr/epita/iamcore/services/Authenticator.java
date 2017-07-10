@@ -6,6 +6,8 @@ import java.util.Scanner;
 
 public class Authenticator {
 	private static Map<String,String> accounts = createMap();
+	
+	
     private static Map<String, String> createMap()
     {
         Map<String,String> myMap = new HashMap<String,String>();
@@ -22,14 +24,7 @@ public class Authenticator {
 	 * @param scan is the Scanner to read user input
 	 * @return
 	 */
-	public static boolean authenticated (Scanner scan) {
-		System.out.println("Enter the username: ");
-		String user = scan.nextLine().trim();
-		System.out.println("Enter the password: ");
-		String password = scan.nextLine().trim();
-		
-		
-		
+	public static boolean authenticated (String user, String password) {		
 		if(accounts.containsKey(user) && accounts.get(user).equals(password)){
 			return true;
 		}

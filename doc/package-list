@@ -1,0 +1,7 @@
+fr.epita.iamcore.datamodel
+fr.epita.iamcore.exceptions
+fr.epita.iamcore.launcher
+fr.epita.iamcore.services
+fr.epita.test.database
+fr.epita.test.datamodel
+fr.epita.test.services
